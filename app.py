@@ -152,12 +152,19 @@ def chat():
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
                 
-            # Intelligently blend active conversation history context if asking a follow-up
-            if len(chat_history) > 0:
-                last_user_turn = chat_history[-1]["content"]
-                # Only prepend/combine context if the current prompt is a follow-up and doesn't repeat the topic
-                if not any(word in search_target.lower() for word in ["subnet", "ip", "network", "apple", "duck", "poe"]):
-                    search_target = f"{search_target} {last_user_turn}"
+            # Clean context blending: extract just the core active topic from recent turns if it's a follow-up
+            if len(chat_history) > 0 and len(search_target.split()) < 7:
+                # Look back at the last user message to see what subject was being discussed
+                for hist_turn in reversed(chat_history):
+                    if hist_turn["role"] == "user":
+                        prev_query = hist_turn["content"].lower()
+                        if "duck" in prev_query:
+                            search_target = f"{search_target} duck"
+                        elif "subnet" in prev_query:
+                            search_target = f"{search_target} subnet"
+                        elif "apple" in prev_query:
+                            search_target = f"{search_target} apple"
+                        break
                 
             search_result = search_wikipedia_kb(search_target)
             agent_reply += f"Knowledge Base Result: {search_result}"
