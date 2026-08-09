@@ -93,25 +93,24 @@ def chat():
     
     agent_reply = ""
     
-    # 1. Check for Name Introduction (handles both standalone and compound sentences)
-    name_match = re.search(r"\b(?:i'm|i am|my name is)\s+([a-zA-Z]+)", query_lower)
+    # 1. Check for Name Introduction (handles 'im', 'i'm', 'i am', 'my name is')
+    name_match = re.search(r"\b(?:im|i'm|i am|my name is)\s+([a-zA-Z]+)", query_lower)
     if name_match:
         extracted_name = name_match.group(1).capitalize()
         user_profile["name"] = extracted_name
         agent_reply += f"Nice to meet you, {extracted_name}! "
         
-        # Cleanly isolate the question part after the name introduction
-        for prefix in ["im ", "i'm ", "i am ", "my name is "]:
-            if prefix in query_lower:
-                parts = user_message.split(prefix, 1)
-                if len(parts) > 1:
-                    sub_parts = re.split(r'[.!?]+', parts[1], maxsplit=1)
-                    if len(sub_parts) > 1 and sub_parts[1].strip():
-                        user_message = sub_parts[1].strip()
-                        query_lower = user_message.lower()
-                    else:
-                        user_message = ""
-                break
+        # Strip out the introduction prefix and name from the message
+        cleaned_msg = user_message
+        for prefix in ["im ", "i'm ", "I'm ", "Im ", "i am ", "I am ", "my name is ", "My name is "]:
+            cleaned_msg = cleaned_msg.replace(prefix, "")
+        cleaned_msg = re.sub(rf"^{extracted_name}[\s.,?!]*", "", cleaned_msg, flags=re.IGNORECASE).strip()
+        
+        if cleaned_msg:
+            user_message = cleaned_msg
+            query_lower = user_message.lower()
+        else:
+            user_message = ""
 
     # 2. Process remaining message content or commands
     if user_message:
