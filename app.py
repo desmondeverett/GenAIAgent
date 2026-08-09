@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, jsonify
 import os
 import io
 import sys
-import pickle
 import re
 import urllib.request
 import urllib.parse
@@ -15,10 +14,44 @@ app = Flask(__name__)
 chat_history = deque(maxlen=6)
 user_profile = {"name": None}
 
-# --- AGENT TOOLS ---
+# --- SMART KNOWLEDGE & VECTOR SIMILARITY MEMORY ---
+class LocalVectorMemory:
+    """Simulates vector embedding storage and cosine similarity retrieval for the web app."""
+    def __init__(self):
+        self.memories = []
+
+    def add_memory(self, text):
+        if text and text not in self.memories:
+            self.memories.append(text)
+            print(f"\n   [VECTOR MEMORY STORED]: '{text[:60]}...'")
+
+    def retrieve(self, query):
+        if not self.memories:
+            return "No information stored in memory yet."
+        
+        # Simple token intersection / semantic overlap score matching
+        query_tokens = set(query.lower().split())
+        best_match = self.memories[-1]
+        highest_score = -1
+
+        for mem in self.memories:
+            mem_tokens = set(mem.lower().split())
+            overlap = len(query_tokens.intersection(mem_tokens))
+            if overlap > highest_score:
+                highest_score = overlap
+                best_match = mem
+
+        return best_match
+
+agent_memory = LocalVectorMemory()
+
+# Preload some helpful technical knowledge facts
+agent_memory.add_memory("A subnet, or subnetwork, is a logical subdivision of an IP network. The practice of dividing a network into two or more networks is called subnetting.")
+agent_memory.add_memory("Edgar Allan Poe (January 19, 1809 – October 7, 1849) was an American writer, poet, editor, and literary critic best known for his poetry and short stories of mystery and the macabre.")
+
 
 def search_wikipedia_kb(query):
-    """Tool: Searches Wikipedia for the best matching page and retrieves full unlimited text."""
+    """Tool: Searches Wikipedia for live information, stores it in vector memory, and returns full text."""
     print(f"\n   [TOOL ACTIVATED] Querying Wikipedia for: '{query}'...")
     
     try:
@@ -48,6 +81,7 @@ def search_wikipedia_kb(query):
             sum_data = json.loads(sum_resp.read().decode('utf-8'))
             extract = sum_data.get("extract", "")
             if extract:
+                agent_memory.add_memory(extract)
                 return extract
                 
         return f"Could not retrieve details for '{best_title}'."
@@ -119,7 +153,7 @@ def chat():
         else:
             user_message = ""
 
-    # 2. Process remaining message content or commands with context awareness
+    # 2. Process conversation or agent capabilities with memory context
     if user_message:
         if "what is my name" in query_lower or "who am i" in query_lower:
             if user_profile["name"]:
@@ -129,11 +163,11 @@ def chat():
                 
         elif "hello" in query_lower or "hi" in query_lower or "who are you" in query_lower:
             greeting_name = f", {user_profile['name']}" if user_profile["name"] else ""
-            agent_reply += f"Hello{greeting_name}! I am Genie, your AI agent. How can I help you today?"
+            agent_reply += f"Hello{greeting_name}! I am Genie, your AI agent with vector memory. How can I help you today?"
             
         elif "status" in query_lower:
             name_status = user_profile["name"] or "Unknown"
-            agent_reply += f"System status: Online. Current User: {name_status}. Active history turns: {len(chat_history)}. Tools ready."
+            agent_reply += f"System status: Online. Current User: {name_status}. Memory facts loaded: {len(agent_memory.memories)}."
             
         elif "read file" in query_lower or "file" in query_lower:
             file_content = read_local_file("shakespeare.txt")
@@ -152,21 +186,23 @@ def chat():
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
                 
-            # Clean context inheritance: if the prompt is a short follow-up, 
-            # check the history buffer for the primary topic of discussion.
-            if len(chat_history) > 0 and len(search_target.split()) < 7:
-                for hist_turn in reversed(chat_history):
-                    if hist_turn["role"] == "user":
-                        prev_text = hist_turn["content"].lower()
-                        # Carry over substantive topic keywords cleanly
-                        for keyword in ["duck", "subnet", "apple", "poe", "python", "transformer"]:
-                            if keyword in prev_text and keyword not in search_target.lower():
-                                search_target = f"{search_target} {keyword}"
-                                break
+            # Context preservation for follow-up questions
+            if len(chat_history) > 0 and len(search_target.split()) < 6:
+                last_turn = chat_history[-1]["content"].lower()
+                for keyword in ["subnet", "ip", "network", "duck", "apple", "poe", "python"]:
+                    if keyword in last_turn and keyword not in search_target.lower():
+                        search_target = f"{search_target} {keyword}"
                         break
+            
+            # Check internal vector memory first
+            memory_hit = agent_memory.retrieve(search_target)
+            if memory_hit and len(search_target.split()) > 2 and any(w in memory_hit.lower() for w in search_target.lower().split()):
+                agent_reply += f"Vector Memory Recall:\n{memory_hit}"
+            else:
+                # Fallback to live Wikipedia KB lookup
+                search_result = search_wikipedia_kb(search_target)
+                agent_reply += f"Knowledge Base Result:\n{search_result}"
                 
-            search_result = search_wikipedia_kb(search_target)
-            agent_reply += f"Knowledge Base Result: {search_result}"
     elif not name_match:
         agent_reply = "Hello! How can I help you today?"
 
