@@ -29,7 +29,6 @@ class LocalVectorMemory:
         if not self.memories:
             return "No information stored in memory yet."
         
-        # Simple token intersection / semantic overlap score matching
         query_tokens = set(query.lower().split())
         best_match = self.memories[-1]
         highest_score = -1
@@ -45,7 +44,7 @@ class LocalVectorMemory:
 
 agent_memory = LocalVectorMemory()
 
-# Preload some helpful technical knowledge facts
+# Preload some helpful technical facts
 agent_memory.add_memory("A subnet, or subnetwork, is a logical subdivision of an IP network. The practice of dividing a network into two or more networks is called subnetting.")
 agent_memory.add_memory("Edgar Allan Poe (January 19, 1809 – October 7, 1849) was an American writer, poet, editor, and literary critic best known for his poetry and short stories of mystery and the macabre.")
 
@@ -194,14 +193,14 @@ def chat():
                         search_target = f"{search_target} {keyword}"
                         break
             
-            # Check internal vector memory first
+            # Check internal vector memory first (without prefixes)
             memory_hit = agent_memory.retrieve(search_target)
             if memory_hit and len(search_target.split()) > 2 and any(w in memory_hit.lower() for w in search_target.lower().split()):
-                agent_reply += f"Vector Memory Recall:\n{memory_hit}"
+                agent_reply += memory_hit
             else:
-                # Fallback to live Wikipedia KB lookup
+                # Fallback to live Wikipedia KB lookup (without prefixes)
                 search_result = search_wikipedia_kb(search_target)
-                agent_reply += f"Knowledge Base Result:\n{search_result}"
+                agent_reply += search_result
                 
     elif not name_match:
         agent_reply = "Hello! How can I help you today?"
