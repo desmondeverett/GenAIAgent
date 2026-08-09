@@ -6,7 +6,7 @@ import pickle
 import re
 import urllib.request
 import urllib.parse
-from bs4 import BeautifulSoup
+import json
 from collections import deque
 
 app = Flask(__name__)
@@ -18,31 +18,28 @@ user_profile = {"name": None}
 # --- AGENT TOOLS ---
 
 def search_duckduckgo_web(query):
-    """Tool: Scrapes live search results from DuckDuckGo's HTML endpoint."""
-    print(f"\n   [TOOL ACTIVATED] Scraping live web for: '{query}'...")
+    """Tool: Queries DuckDuckGo Instant Answer API for live summaries."""
+    print(f"\n   [TOOL ACTIVATED] Querying DuckDuckGo API for: '{query}'...")
     encoded_query = urllib.parse.quote(query)
-    url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
+    url = f"https://api.duckduckgo.com/?q={encoded_query}&format=json&t=genai_agent"
     
     try:
-        req = urllib.request.Request(
-            url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-        )
+        req = urllib.request.Request(url, headers={'User-Agent': 'GenAI_Agent/1.0'})
         with urllib.request.urlopen(req) as response:
-            html_content = response.read().decode('utf-8')
+            data = json.loads(response.read().decode('utf-8'))
             
-        soup = BeautifulSoup(html_content, 'html.parser')
-        results = []
-        
-        for a in soup.find_all('a', class_='result__snippet', limit=3):
-            results.append(a.get_text(strip=True))
+        abstract = data.get("AbstractText", "")
+        if abstract:
+            return abstract
             
-        if not results:
-            return f"No search snippets found for: {query}"
-            
-        return " | ".join(results)
+        related = data.get("RelatedTopics", [])
+        for item in related:
+            if "Text" in item:
+                return item["Text"]
+                
+        return f"No summary found for '{query}'. Try asking a broader question!"
     except Exception as e:
-        return f"Scraping Error: {str(e)}"
+        return f"Search Error: {str(e)}"
 
 def execute_python_code(code_string):
     """Tool: Safely executes Python code strings and captures standard output."""
@@ -122,7 +119,7 @@ def chat():
                 
         elif "hello" in query_lower or "hi" in query_lower:
             greeting_name = f", {user_profile['name']}" if user_profile["name"] else ""
-            agent_reply += f"Hello{greeting_name}! I am, Genie, your AI agent. How can I help you today?"
+            agent_reply += f"Hello{greeting_name}! I am Genie, your AI agent. How can I help you today?"
             
         elif "status" in query_lower:
             name_status = user_profile["name"] or "Unknown"
