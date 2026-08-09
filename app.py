@@ -5,37 +5,38 @@ import sys
 import pickle
 import urllib.request
 import urllib.parse
-import json
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 
-# --- SEARCH & EXECUTION TOOLS ---
-def search_google_live(query):
-    """Tool: Queries Google Custom Search JSON API for live web results."""
-    API_KEY = "YOUR_GOOGLE_API_KEY"      # Replace with your Google API Key if using custom search
-    CSE_ID = "YOUR_CUSTOM_SEARCH_ENGINE_ID"
-    
-    # Fallback to duckduckgo instant api or a direct summary if google keys aren't set up yet
+# --- AGENT TOOLS ---
+
+def search_duckduckgo_web(query):
+    """Tool: Scrapes live search results from DuckDuckGo's HTML endpoint."""
+    print(f"\n   [TOOL ACTIVATED] Scraping live web for: '{query}'...")
     encoded_query = urllib.parse.quote(query)
-    url = f"https://api.duckduckgo.com/?q={encoded_query}&format=json&t=genai_agent"
+    url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
     
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'GenAI_Agent/1.0'})
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
         with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
+            html_content = response.read().decode('utf-8')
             
-        abstract = data.get("AbstractText", "")
-        if abstract:
-            return abstract
+        soup = BeautifulSoup(html_content, 'html.parser')
+        results = []
+        
+        for a in soup.find_all('a', class_='result__snippet', limit=3):
+            results.append(a.get_text(strip=True))
             
-        related = data.get("RelatedTopics", [])
-        for item in related:
-            if "Text" in item:
-                return item["Text"]
-                
-        return f"No direct answer found for: {query}"
+        if not results:
+            return f"No search snippets found for: {query}"
+            
+        return " | ".join(results)
     except Exception as e:
-        return f"Search Error: {str(e)}"
+        return f"Scraping Error: {str(e)}"
 
 def execute_python_code(code_string):
     """Tool: Safely executes Python code strings and captures standard output."""
@@ -56,6 +57,16 @@ def execute_python_code(code_string):
         
     return output.strip()
 
+def read_local_file(file_path):
+    """Tool: Reads text content from a local workspace file."""
+    try:
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        return f"Error: File '{file_path}' not found in workspace."
+    except Exception as e:
+        return f"Error reading file: {str(e)}"
+
 
 # --- FLASK WEB ROUTES ---
 
@@ -74,7 +85,12 @@ def chat():
         agent_reply = "Hello! I am your custom GenAI agent, powered by your Flask backend and local tools."
         
     elif "status" in query_lower:
-        agent_reply = "System status: Online. Search tool and Python interpreter ready."
+        agent_reply = "System status: Online. Web scraper, Python interpreter, and file reader are active."
+        
+    elif "read file" in query_lower or "file" in query_lower:
+        file_content = read_local_file("shakespeare.txt")
+        snippet = file_content[:350] + "..." if len(file_content) > 350 else file_content
+        agent_reply = f"File Content Preview:\n{snippet}"
         
     elif any(op in user_message for op in ["+", "-", "*", "/"]) and "what is the" not in query_lower:
         # Strictly catch math calculations
@@ -85,12 +101,12 @@ def chat():
         agent_reply = f"Calculated Result: {result}"
         
     else:
-        # Route factual questions (like "who is" or "what is") to our live search tool
-        search_target = user_message.replace("what is the", "").replace("who is the", "").replace("who was", "").replace("what is", "").replace("can you tell me", "").strip()
+        # Route general informational questions to our live web scraper
+        search_target = user_message.replace("what is the", "").replace("who is the", "").replace("who was the", "").replace("who was", "").replace("what is", "").replace("can you tell me", "").strip()
         if search_target.endswith("?"):
             search_target = search_target[:-1].strip()
             
-        search_result = search_google_live(search_target)
+        search_result = search_duckduckgo_web(search_target)
         agent_reply = f"Search Result: {search_result}"
     
     return jsonify({"response": agent_reply})
