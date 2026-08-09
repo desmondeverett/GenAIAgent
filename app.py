@@ -18,10 +18,9 @@ user_profile = {"name": None}
 # --- AGENT TOOLS ---
 
 def search_wikipedia_kb(query):
-    """Tool: Queries Wikipedia's public summary API for reliable live information."""
+    """Tool: Queries Wikipedia's public summary API for unlimited live information."""
     print(f"\n   [TOOL ACTIVATED] Querying Wikipedia for: '{query}'...")
     
-    # Format query for Wikipedia API search
     formatted_query = urllib.parse.quote(query.title())
     url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{formatted_query}"
     
@@ -33,6 +32,7 @@ def search_wikipedia_kb(query):
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read().decode('utf-8'))
             
+        # Returns the full extract without character slicing limitations
         extract = data.get("extract", "")
         if extract:
             return extract
