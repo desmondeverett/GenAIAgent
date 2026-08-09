@@ -4,7 +4,7 @@ import io
 import sys
 import pickle
 import re
-from googlesearch import search
+from duckduckgo_search import DDGS
 from collections import deque
 
 app = Flask(__name__)
@@ -15,18 +15,19 @@ user_profile = {"name": None}
 
 # --- AGENT TOOLS ---
 
-def search_google_live(query):
-    """Tool: Uses googlesearch-python package to fetch live URLs from Google."""
-    print(f"\n   [TOOL ACTIVATED] Performing live Google search for: '{query}'...")
+def search_duckduckgo_live(query):
+    """Tool: Uses the official duckduckgo_search package to fetch live results."""
+    print(f"\n   [TOOL ACTIVATED] Performing live DDG search for: '{query}'...")
     try:
-        # Fetch top 3 results from Google
-        results = list(search(query, num_results=3))
+        with DDGS() as ddgs:
+            results = [r['body'] for r in ddgs.text(query, max_results=3)]
+            
         if not results:
-            return f"No Google search results found for: {query}"
+            return f"No search results found for: {query}"
             
         return " | ".join(results)
     except Exception as e:
-        return f"Google Search Error: {str(e)}"
+        return f"Search Error: {str(e)}"
 
 def execute_python_code(code_string):
     """Tool: Safely executes Python code strings and captures standard output."""
@@ -104,7 +105,7 @@ def chat():
             else:
                 agent_reply += "You haven't told me your name yet!"
                 
-        elif "hello" in query_lower or "hi" in query_lower:
+        elif "hello" in query_lower or "hi" in query_lower or "what is your name" in query_lower or "what's your name" in query_lower or "who are you" in query_lower:
             greeting_name = f", {user_profile['name']}" if user_profile["name"] else ""
             agent_reply += f"Hello{greeting_name}! I am Genie, your AI agent. How can I help you today?"
             
@@ -129,8 +130,8 @@ def chat():
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
                 
-            search_result = search_google_live(search_target)
-            agent_reply += f"Google Search Results: {search_result}"
+            search_result = search_duckduckgo_live(search_target)
+            agent_reply += f"Search Results: {search_result}"
     elif not name_match:
         agent_reply = "Hello! How can I help you today?"
 
