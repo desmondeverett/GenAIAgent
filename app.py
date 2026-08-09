@@ -3,25 +3,39 @@ import os
 import io
 import sys
 import pickle
+import urllib.request
+import urllib.parse
+import json
 
 app = Flask(__name__)
 
-# --- AGENT MEMORY & TOOLS SETUP ---
-MEMORY_PATH = 'agent_memory.pkl'
-
-def load_persistence_memory():
-    """Loads saved state or initializes a blank store."""
-    if os.path.exists(MEMORY_PATH):
-        try:
-            with open(MEMORY_PATH, 'rb') as f:
-                data = pickle.load(f)
-                print(f"[SYSTEM] Restored {len(data.get('values', []))} memories from disk.")
-                return data.get('values', [])
-        except Exception as e:
-            print(f"[SYSTEM ERROR] Could not load memory: {e}")
-    return []
-
-agent_memory = load_persistence_memory()
+# --- SEARCH & EXECUTION TOOLS ---
+def search_google_live(query):
+    """Tool: Queries Google Custom Search JSON API for live web results."""
+    API_KEY = "YOUR_GOOGLE_API_KEY"      # Replace with your Google API Key if using custom search
+    CSE_ID = "YOUR_CUSTOM_SEARCH_ENGINE_ID"
+    
+    # Fallback to duckduckgo instant api or a direct summary if google keys aren't set up yet
+    encoded_query = urllib.parse.quote(query)
+    url = f"https://api.duckduckgo.com/?q={encoded_query}&format=json&t=genai_agent"
+    
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'GenAI_Agent/1.0'})
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode('utf-8'))
+            
+        abstract = data.get("AbstractText", "")
+        if abstract:
+            return abstract
+            
+        related = data.get("RelatedTopics", [])
+        for item in related:
+            if "Text" in item:
+                return item["Text"]
+                
+        return f"No direct answer found for: {query}"
+    except Exception as e:
+        return f"Search Error: {str(e)}"
 
 def execute_python_code(code_string):
     """Tool: Safely executes Python code strings and captures standard output."""
@@ -30,7 +44,6 @@ def execute_python_code(code_string):
     sys.stdout = new_stdout
     
     try:
-        # Wrap simple expressions in a print statement automatically
         if "\n" not in code_string and "print" not in code_string:
             code_string = f"print({code_string})"
             
@@ -42,16 +55,6 @@ def execute_python_code(code_string):
         sys.stdout = old_stdout
         
     return output.strip()
-
-def read_local_file(file_path):
-    """Tool: Reads text content from a local workspace file."""
-    try:
-        if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                return f.read()
-        return f"Error: File '{file_path}' not found in workspace."
-    except Exception as e:
-        return f"Error reading file: {str(e)}"
 
 
 # --- FLASK WEB ROUTES ---
@@ -68,29 +71,27 @@ def chat():
     
     # --- INTENT ROUTING LOGIC ---
     if "hello" in query_lower or "hi" in query_lower:
-        agent_reply = "Hello! I am your custom GenAI agent, powered by your Flask backend and local Python tools."
+        agent_reply = "Hello! I am your custom GenAI agent, powered by your Flask backend and local tools."
         
     elif "status" in query_lower:
-        agent_reply = f"System status: Online. Active memory records: {len(agent_memory)}. Python execution interpreter ready."
+        agent_reply = "System status: Online. Search tool and Python interpreter ready."
         
-    elif "read file" in query_lower or "file" in query_lower:
-        # Default to reading your sample corpus if requested
-        file_content = read_local_file("shakespeare.txt")
-        snippet = file_content[:350] + "..." if len(file_content) > 350 else file_content
-        agent_reply = f"File Content Preview:\n{snippet}"
-        
-    elif "what is" in query_lower or "calculate" in query_lower or any(op in user_message for op in ["+", "-", "*", "/"]):
-        # Extract and compute expression
+    elif any(op in user_message for op in ["+", "-", "*", "/"]) and "what is the" not in query_lower:
+        # Strictly catch math calculations
         expression = user_message.replace("what is", "").replace("calculate", "").strip()
         if expression.endswith("?"):
             expression = expression[:-1].strip()
-            
         result = execute_python_code(expression)
         agent_reply = f"Calculated Result: {result}"
         
     else:
-        # Fallback intelligent agent response handler
-        agent_reply = f"Agent successfully processed your query: '{user_message}'. (Your ReAct router, file tools, and Python interpreter are standing by.)"
+        # Route factual questions (like "who is" or "what is") to our live search tool
+        search_target = user_message.replace("what is the", "").replace("who is the", "").replace("who was", "").replace("what is", "").replace("can you tell me", "").strip()
+        if search_target.endswith("?"):
+            search_target = search_target[:-1].strip()
+            
+        search_result = search_google_live(search_target)
+        agent_reply = f"Search Result: {search_result}"
     
     return jsonify({"response": agent_reply})
 
