@@ -6,7 +6,7 @@ import pickle
 import re
 import urllib.request
 import urllib.parse
-import json
+from bs4 import BeautifulSoup
 from collections import deque
 
 app = Flask(__name__)
@@ -18,28 +18,33 @@ user_profile = {"name": None}
 # --- AGENT TOOLS ---
 
 def search_web_fallback(query):
-    """Tool: Uses DuckDuckGo's public Instant Answer API for live answers."""
-    print(f"\n   [TOOL ACTIVATED] Querying web API for: '{query}'...")
+    """Tool: Scrapes live search results from DuckDuckGo's HTML endpoint for any query."""
+    print(f"\n   [TOOL ACTIVATED] Scraping live web for: '{query}'...")
     encoded_query = urllib.parse.quote(query)
-    url = f"https://api.duckduckgo.com/?q={encoded_query}&format=json&t=genai_agent"
+    url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
     
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'GenAI_Agent/1.0'})
+        req = urllib.request.Request(
+            url, 
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+        )
         with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
+            html_content = response.read().decode('utf-8')
             
-        abstract = data.get("AbstractText", "")
-        if abstract:
-            return abstract
-            
-        related = data.get("RelatedTopics", [])
-        for item in related:
-            if "Text" in item:
-                return item["Text"]
+        soup = BeautifulSoup(html_content, 'html.parser')
+        results = []
+        
+        for a in soup.find_all('a', class_='result__snippet', limit=3):
+            text = a.get_text(strip=True)
+            if text:
+                results.append(text)
                 
-        return f"No direct summary found for '{query}'."
+        if not results:
+            return f"No search snippets found for '{query}'."
+            
+        return " | ".join(results)
     except Exception as e:
-        return f"Search Error: {str(e)}"
+        return f"Scraping Error: {str(e)}"
 
 def execute_python_code(code_string):
     """Tool: Safely executes Python code strings and captures standard output."""
