@@ -22,7 +22,6 @@ def search_wikipedia_kb(query):
     print(f"\n   [TOOL ACTIVATED] Querying Wikipedia for: '{query}'...")
     
     try:
-        # Step 1: Search for the correct Wikipedia page title matching the query
         search_api_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&format=json"
         req_search = urllib.request.Request(
             search_api_url, 
@@ -36,11 +35,9 @@ def search_wikipedia_kb(query):
             if not search_results:
                 return f"No information found for '{query}'."
                 
-            # Get the top matching article title
             best_title = search_results[0]["title"]
             print(f"   [MATCHED WIKI PAGE]: '{best_title}'")
             
-        # Step 2: Fetch the full summary extract for that exact title
         summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(best_title)}"
         req_sum = urllib.request.Request(
             summary_url, 
@@ -101,9 +98,7 @@ def chat():
     if not user_message:
         return jsonify({"response": "Please enter a valid message."})
         
-    chat_history.append({"role": "user", "content": user_message})
     query_lower = user_message.lower()
-    
     agent_reply = ""
     
     # 1. Check for Name Introduction (handles 'im', 'i'm', 'i am', 'my name is')
@@ -113,7 +108,6 @@ def chat():
         user_profile["name"] = extracted_name
         agent_reply += f"Nice to meet you, {extracted_name}! "
         
-        # Strip out the introduction prefix and name from the message
         cleaned_msg = user_message
         for prefix in ["im ", "i'm ", "I'm ", "Im ", "i am ", "I am ", "my name is ", "My name is "]:
             cleaned_msg = cleaned_msg.replace(prefix, "")
@@ -125,7 +119,7 @@ def chat():
         else:
             user_message = ""
 
-    # 2. Process remaining message content or commands
+    # 2. Process remaining message content or commands with context awareness
     if user_message:
         if "what is my name" in query_lower or "who am i" in query_lower:
             if user_profile["name"]:
@@ -158,12 +152,20 @@ def chat():
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
                 
+            # If the query is ambiguous, reference recent history if available
+            if len(search_target.split()) <= 2 and len(chat_history) > 0:
+                last_user_turn = chat_history[-1]["content"]
+                search_target = f"{search_target} {last_user_turn}"
+                
             search_result = search_wikipedia_kb(search_target)
             agent_reply += f"Knowledge Base Result: {search_result}"
     elif not name_match:
         agent_reply = "Hello! How can I help you today?"
 
+    # Append current turn to sliding window history buffer
+    chat_history.append({"role": "user", "content": user_message})
     chat_history.append({"role": "assistant", "content": agent_reply})
+    
     return jsonify({"response": agent_reply})
 
 if __name__ == "__main__":
