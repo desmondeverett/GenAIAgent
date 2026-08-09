@@ -4,9 +4,7 @@ import io
 import sys
 import pickle
 import re
-import urllib.request
-import urllib.parse
-import json
+from googlesearch import search
 from collections import deque
 
 app = Flask(__name__)
@@ -17,29 +15,18 @@ user_profile = {"name": None}
 
 # --- AGENT TOOLS ---
 
-def search_duckduckgo_web(query):
-    """Tool: Queries DuckDuckGo Instant Answer API for live summaries."""
-    print(f"\n   [TOOL ACTIVATED] Querying DuckDuckGo API for: '{query}'...")
-    encoded_query = urllib.parse.quote(query)
-    url = f"https://api.duckduckgo.com/?q={encoded_query}&format=json&t=genai_agent"
-    
+def search_google_live(query):
+    """Tool: Uses googlesearch-python package to fetch live URLs from Google."""
+    print(f"\n   [TOOL ACTIVATED] Performing live Google search for: '{query}'...")
     try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'GenAI_Agent/1.0'})
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
+        # Fetch top 3 results from Google
+        results = list(search(query, num_results=3))
+        if not results:
+            return f"No Google search results found for: {query}"
             
-        abstract = data.get("AbstractText", "")
-        if abstract:
-            return abstract
-            
-        related = data.get("RelatedTopics", [])
-        for item in related:
-            if "Text" in item:
-                return item["Text"]
-                
-        return f"No summary found for '{query}'. Try asking a broader question!"
+        return " | ".join(results)
     except Exception as e:
-        return f"Search Error: {str(e)}"
+        return f"Google Search Error: {str(e)}"
 
 def execute_python_code(code_string):
     """Tool: Safely executes Python code strings and captures standard output."""
@@ -142,8 +129,8 @@ def chat():
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
                 
-            search_result = search_duckduckgo_web(search_target)
-            agent_reply += f"Search Result: {search_result}"
+            search_result = search_google_live(search_target)
+            agent_reply += f"Google Search Results: {search_result}"
     elif not name_match:
         agent_reply = "Hello! How can I help you today?"
 
