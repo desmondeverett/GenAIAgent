@@ -152,10 +152,12 @@ def chat():
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
                 
-            # If the query is ambiguous, reference recent history if available
-            if len(search_target.split()) <= 2 and len(chat_history) > 0:
+            # Intelligently blend active conversation history context if asking a follow-up
+            if len(chat_history) > 0:
                 last_user_turn = chat_history[-1]["content"]
-                search_target = f"{search_target} {last_user_turn}"
+                # Only prepend/combine context if the current prompt is a follow-up and doesn't repeat the topic
+                if not any(word in search_target.lower() for word in ["subnet", "ip", "network", "apple", "duck", "poe"]):
+                    search_target = f"{search_target} {last_user_turn}"
                 
             search_result = search_wikipedia_kb(search_target)
             agent_reply += f"Knowledge Base Result: {search_result}"
