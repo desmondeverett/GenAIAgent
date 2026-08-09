@@ -18,37 +18,42 @@ user_profile = {"name": None}
 # --- AGENT TOOLS ---
 
 def search_wikipedia_kb(query):
-    """Tool: Queries Wikipedia's public API for full, unlimited text extraction."""
+    """Tool: Searches Wikipedia for the best matching page and retrieves full unlimited text."""
     print(f"\n   [TOOL ACTIVATED] Querying Wikipedia for: '{query}'...")
     
-    # Use Wikipedia's action API to fetch the full introductory text without summary truncation
-    formatted_query = urllib.parse.quote(query)
-    url = f"https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&explaintext&titles={formatted_query}&format=json"
-    
     try:
-        req = urllib.request.Request(
-            url, 
+        # Step 1: Search for the correct Wikipedia page title matching the query
+        search_api_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&format=json"
+        req_search = urllib.request.Request(
+            search_api_url, 
             headers={'User-Agent': 'GenAI_Agent/1.0 (contact@example.com)'}
         )
-        with urllib.request.urlopen(req) as response:
-            data = json.loads(response.read().decode('utf-8'))
+        
+        with urllib.request.urlopen(req_search) as search_resp:
+            search_data = json.loads(search_resp.read().decode('utf-8'))
+            search_results = search_data.get("query", {}).get("search", [])
             
-        pages = data.get("query", {}).get("pages", {})
-        for page_id, page_data in pages.items():
-            if page_id != "-1" and "extract" in page_data:
-                full_extract = page_data["extract"]
-                if full_extract:
-                    return full_extract
-                    
-        # Fallback to summary endpoint if extract query is empty
-        summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(query.title())}"
-        req_sum = urllib.request.Request(summary_url, headers={'User-Agent': 'GenAI_Agent/1.0'})
-        with urllib.request.urlopen(req_sum) as resp:
-            sum_data = json.loads(resp.read().decode('utf-8'))
-            if "extract" in sum_data:
-                return sum_data["extract"]
+            if not search_results:
+                return f"No information found for '{query}'."
                 
-        return f"No detailed information found for '{query}'."
+            # Get the top matching article title
+            best_title = search_results[0]["title"]
+            print(f"   [MATCHED WIKI PAGE]: '{best_title}'")
+            
+        # Step 2: Fetch the full summary extract for that exact title
+        summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(best_title)}"
+        req_sum = urllib.request.Request(
+            summary_url, 
+            headers={'User-Agent': 'GenAI_Agent/1.0 (contact@example.com)'}
+        )
+        
+        with urllib.request.urlopen(req_sum) as sum_resp:
+            sum_data = json.loads(sum_resp.read().decode('utf-8'))
+            extract = sum_data.get("extract", "")
+            if extract:
+                return extract
+                
+        return f"Could not retrieve details for '{best_title}'."
     except Exception as e:
         return f"Could not find information on '{query}'. Error: {str(e)}"
 
