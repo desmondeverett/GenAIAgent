@@ -6,7 +6,7 @@ import pickle
 import re
 import urllib.request
 import urllib.parse
-from bs4 import BeautifulSoup
+import json
 from collections import deque
 
 app = Flask(__name__)
@@ -17,34 +17,42 @@ user_profile = {"name": None}
 
 # --- AGENT TOOLS ---
 
-def search_web_fallback(query):
-    """Tool: Scrapes live search results from DuckDuckGo's HTML endpoint for any query."""
-    print(f"\n   [TOOL ACTIVATED] Scraping live web for: '{query}'...")
-    encoded_query = urllib.parse.quote(query)
-    url = f"https://html.duckduckgo.com/html/?q={encoded_query}"
+def search_wikipedia_kb(query):
+    """Tool: Queries Wikipedia's public summary API for reliable live information."""
+    print(f"\n   [TOOL ACTIVATED] Querying Wikipedia for: '{query}'...")
+    
+    # Format query for Wikipedia API search
+    formatted_query = urllib.parse.quote(query.title())
+    url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{formatted_query}"
     
     try:
         req = urllib.request.Request(
             url, 
-            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            headers={'User-Agent': 'GenAI_Agent/1.0 (contact@example.com)'}
         )
         with urllib.request.urlopen(req) as response:
-            html_content = response.read().decode('utf-8')
+            data = json.loads(response.read().decode('utf-8'))
             
-        soup = BeautifulSoup(html_content, 'html.parser')
-        results = []
-        
-        for a in soup.find_all('a', class_='result__snippet', limit=3):
-            text = a.get_text(strip=True)
-            if text:
-                results.append(text)
-                
-        if not results:
-            return f"No search snippets found for '{query}'."
+        extract = data.get("extract", "")
+        if extract:
+            return extract
             
-        return " | ".join(results)
+        return f"No Wikipedia summary found for '{query}'."
     except Exception as e:
-        return f"Scraping Error: {str(e)}"
+        # Fallback to general search if direct page lookup fails
+        try:
+            search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&format=json"
+            req = urllib.request.Request(search_url, headers={'User-Agent': 'GenAI_Agent/1.0'})
+            with urllib.request.urlopen(req) as resp:
+                search_data = json.loads(resp.read().decode('utf-8'))
+                results = search_data.get("query", {}).get("search", [])
+                if results:
+                    snippet = results[0].get("snippet", "").replace('<span class="searchmatch">', '').replace('</span>', '')
+                    return f"Result: {snippet}..."
+        except Exception:
+            pass
+            
+        return f"Could not find information on '{query}'."
 
 def execute_python_code(code_string):
     """Tool: Safely executes Python code strings and captures standard output."""
@@ -147,8 +155,8 @@ def chat():
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
                 
-            search_result = search_web_fallback(search_target)
-            agent_reply += f"Search Result: {search_result}"
+            search_result = search_wikipedia_kb(search_target)
+            agent_reply += f"Knowledge Base Result: {search_result}"
     elif not name_match:
         agent_reply = "Hello! How can I help you today?"
 
