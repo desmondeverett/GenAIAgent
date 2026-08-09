@@ -152,18 +152,18 @@ def chat():
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
                 
-            # Clean context blending: extract just the core active topic from recent turns if it's a follow-up
-            if len(chat_history) > 0 and len(search_target.split()) < 7:
-                # Look back at the last user message to see what subject was being discussed
+            # Dynamic Context Inheritance: If the user asks a follow-up without naming the core entity, 
+            # scan history for the most recent noun/subject to ensure continuity.
+            if len(chat_history) > 0 and len(search_target.split()) < 8:
                 for hist_turn in reversed(chat_history):
                     if hist_turn["role"] == "user":
-                        prev_query = hist_turn["content"].lower()
-                        if "duck" in prev_query:
-                            search_target = f"{search_target} duck"
-                        elif "subnet" in prev_query:
-                            search_target = f"{search_target} subnet"
-                        elif "apple" in prev_query:
-                            search_target = f"{search_target} apple"
+                        prev_text = hist_turn["content"]
+                        # Filter out generic introductory words to isolate the subject noun
+                        words = [w for w in prev_text.split() if w.lower() not in ["what", "is", "are", "tell", "me", "about", "can", "you", "show", "the", "a", "an"]]
+                        if words:
+                            core_subject = words[-1] # Grabs the core target noun (e.g., 'ducks', 'subnet', 'raven')
+                            if core_subject.lower() not in search_target.lower():
+                                search_target = f"{search_target} {core_subject}"
                         break
                 
             search_result = search_wikipedia_kb(search_target)
