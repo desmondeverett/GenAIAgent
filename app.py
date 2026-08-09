@@ -100,19 +100,20 @@ def chat():
         user_profile["name"] = extracted_name
         agent_reply += f"Nice to meet you, {extracted_name}! "
         
-        # Strip out the name part so the rest of the sentence can be processed
-        for prefix in ["i'm ", "i am ", "my name is "]:
+        # Cleanly isolate the question part after the name introduction
+        for prefix in ["im ", "i'm ", "i am ", "my name is "]:
             if prefix in query_lower:
                 parts = user_message.split(prefix, 1)
                 if len(parts) > 1:
-                    remainder = re.sub(rf"^{extracted_name}[\s.,?!]*", "", parts[1], flags=re.IGNORECASE).strip()
-                    if remainder:
-                        user_message = remainder
+                    sub_parts = re.split(r'[.!?]+', parts[1], maxsplit=1)
+                    if len(sub_parts) > 1 and sub_parts[1].strip():
+                        user_message = sub_parts[1].strip()
                         query_lower = user_message.lower()
                     else:
                         user_message = ""
+                break
 
-    # 2. Process any remaining query or standalone command
+    # 2. Process remaining message content or commands
     if user_message:
         if "what is my name" in query_lower or "who am i" in query_lower:
             if user_profile["name"]:
@@ -141,7 +142,7 @@ def chat():
             agent_reply += f"Calculated Result: {result}"
             
         else:
-            search_target = user_message.replace("what is the", "").replace("who is the", "").replace("who was the", "").replace("who was", "").replace("what is", "").replace("can you tell me", "").replace("what are", "").strip()
+            search_target = user_message.strip()
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
                 
