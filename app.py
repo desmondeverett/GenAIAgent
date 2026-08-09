@@ -142,7 +142,6 @@ def chat():
             agent_reply += f"Calculated Result: {result}"
             
         else:
-            # Clean search target extraction
             search_target = user_message.strip()
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
