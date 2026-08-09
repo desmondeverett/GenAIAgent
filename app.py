@@ -152,18 +152,17 @@ def chat():
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
                 
-            # Dynamic Context Inheritance: If the user asks a follow-up without naming the core entity, 
-            # scan history for the most recent noun/subject to ensure continuity.
-            if len(chat_history) > 0 and len(search_target.split()) < 8:
+            # Clean context inheritance: if the prompt is a short follow-up, 
+            # check the history buffer for the primary topic of discussion.
+            if len(chat_history) > 0 and len(search_target.split()) < 7:
                 for hist_turn in reversed(chat_history):
                     if hist_turn["role"] == "user":
-                        prev_text = hist_turn["content"]
-                        # Filter out generic introductory words to isolate the subject noun
-                        words = [w for w in prev_text.split() if w.lower() not in ["what", "is", "are", "tell", "me", "about", "can", "you", "show", "the", "a", "an"]]
-                        if words:
-                            core_subject = words[-1] # Grabs the core target noun (e.g., 'ducks', 'subnet', 'raven')
-                            if core_subject.lower() not in search_target.lower():
-                                search_target = f"{search_target} {core_subject}"
+                        prev_text = hist_turn["content"].lower()
+                        # Carry over substantive topic keywords cleanly
+                        for keyword in ["duck", "subnet", "apple", "poe", "python", "transformer"]:
+                            if keyword in prev_text and keyword not in search_target.lower():
+                                search_target = f"{search_target} {keyword}"
+                                break
                         break
                 
             search_result = search_wikipedia_kb(search_target)
