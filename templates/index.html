@@ -9,16 +9,25 @@
 </head>
 <body>
 
-<div class="chat-container">
-    <h2>Genie AI Agent Dashboard</h2>
-    <div class="chat-box" id="chatBox">
-        <div class="message agent-message">Hello! What's your name and how can I help you today?</div>
+<div class="chat-wrapper" style="display: flex; flex-direction: column; align-items: center; gap: 15px;">
+    <!-- Optional Genie Avatar/Header Graphic -->
+    <div style="font-size: 3rem; background: #d8f3dc; padding: 10px 20px; border-radius: 50%; box-shadow: 0 4px 10px rgba(45, 106, 79, 0.1);">
+        🧞‍♂️
     </div>
-    <div class="input-group">
-        <input type="text" id="userInput" placeholder="Ask your agent anything..." autocomplete="off">
-        <button onclick="sendMessage()">Send</button>
+
+    <div class="chat-container">
+        <h2>Genie AI Agent Dashboard</h2>
+        <div class="chat-box" id="chatBox">
+            <div class="message agent-message">Hello! What's your name and how can I help you today?</div>
+        </div>
+        <div class="input-group">
+            <input type="text" id="userInput" placeholder="Ask your agent anything..." autocomplete="off">
+            <button onclick="sendMessage()">Send</button>
+        </div>
     </div>
 </div>
+
+<!-- Scripts below -->
 
 <script>
     async function sendMessage() {
