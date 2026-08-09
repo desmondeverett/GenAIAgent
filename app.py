@@ -18,11 +18,12 @@ user_profile = {"name": None}
 # --- AGENT TOOLS ---
 
 def search_wikipedia_kb(query):
-    """Tool: Queries Wikipedia's public summary API for unlimited live information."""
+    """Tool: Queries Wikipedia's public API for full, unlimited text extraction."""
     print(f"\n   [TOOL ACTIVATED] Querying Wikipedia for: '{query}'...")
     
-    formatted_query = urllib.parse.quote(query.title())
-    url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{formatted_query}"
+    # Use Wikipedia's action API to fetch the full introductory text without summary truncation
+    formatted_query = urllib.parse.quote(query)
+    url = f"https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&explaintext&titles={formatted_query}&format=json"
     
     try:
         req = urllib.request.Request(
@@ -32,27 +33,24 @@ def search_wikipedia_kb(query):
         with urllib.request.urlopen(req) as response:
             data = json.loads(response.read().decode('utf-8'))
             
-        # Returns the full extract without character slicing limitations
-        extract = data.get("extract", "")
-        if extract:
-            return extract
-            
-        return f"No Wikipedia summary found for '{query}'."
+        pages = data.get("query", {}).get("pages", {})
+        for page_id, page_data in pages.items():
+            if page_id != "-1" and "extract" in page_data:
+                full_extract = page_data["extract"]
+                if full_extract:
+                    return full_extract
+                    
+        # Fallback to summary endpoint if extract query is empty
+        summary_url = f"https://en.wikipedia.org/api/rest_v1/page/summary/{urllib.parse.quote(query.title())}"
+        req_sum = urllib.request.Request(summary_url, headers={'User-Agent': 'GenAI_Agent/1.0'})
+        with urllib.request.urlopen(req_sum) as resp:
+            sum_data = json.loads(resp.read().decode('utf-8'))
+            if "extract" in sum_data:
+                return sum_data["extract"]
+                
+        return f"No detailed information found for '{query}'."
     except Exception as e:
-        # Fallback to general search if direct page lookup fails
-        try:
-            search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&format=json"
-            req = urllib.request.Request(search_url, headers={'User-Agent': 'GenAI_Agent/1.0'})
-            with urllib.request.urlopen(req) as resp:
-                search_data = json.loads(resp.read().decode('utf-8'))
-                results = search_data.get("query", {}).get("search", [])
-                if results:
-                    snippet = results[0].get("snippet", "").replace('<span class="searchmatch">', '').replace('</span>', '')
-                    return f"Result: {snippet}..."
-        except Exception:
-            pass
-            
-        return f"Could not find information on '{query}'."
+        return f"Could not find information on '{query}'. Error: {str(e)}"
 
 def execute_python_code(code_string):
     """Tool: Safely executes Python code strings and captures standard output."""
