@@ -6,11 +6,17 @@ This project documents the journey of building an agent from the ground up: movi
 
 ---
 
-## 📸 System Architecture & Interface Preview
+## 📸 System Architecture & Interface Evolution
 
-Here is a look at the current development build running locally in GitHub Codespaces, featuring the custom forest-and-mint green CSS container theme:
+### 1. Initial Interface Build (Pre-Query State)
+Here is how the custom forest-and-mint green CSS container theme looks on startup:
 
-![GenAI Agent Dashboard Interface Screenshot](Screenshot%202026-08-09%20144028.png)
+![GenAI Agent Dashboard Initial State](Screenshot%202026-08-09%20150358.png)
+
+### 2. Live Dynamic Response State
+Here is how the system renders dynamic Wikipedia RAG knowledge base lookups in real time inside the chat container:
+
+![GenAI Agent Dashboard Live Response State](Screenshot%202026-08-09%20150822.png)
 
 ---
 
