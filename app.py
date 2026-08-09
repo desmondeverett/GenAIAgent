@@ -109,7 +109,7 @@ def chat():
     # 2. Greetings
     elif "hello" in query_lower or "hi" in query_lower:
         greeting_name = f", {user_profile['name']}" if user_profile["name"] else ""
-        agent_reply = f"Hello{greeting_name}! I am your custom GenAI agent, powered by your Flask backend and local tools."
+        agent_reply = f"Hello{greeting_name}! I am, Geani, your AI Agnet. How can I help you today?"
         
     # 3. System Status
     elif "status" in query_lower:
