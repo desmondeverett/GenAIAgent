@@ -4,7 +4,9 @@ import io
 import sys
 import pickle
 import re
-from duckduckgo_search import DDGS
+import urllib.request
+import urllib.parse
+import json
 from collections import deque
 
 app = Flask(__name__)
@@ -15,17 +17,27 @@ user_profile = {"name": None}
 
 # --- AGENT TOOLS ---
 
-def search_duckduckgo_live(query):
-    """Tool: Uses the official duckduckgo_search package to fetch live results."""
-    print(f"\n   [TOOL ACTIVATED] Performing live DDG search for: '{query}'...")
+def search_web_fallback(query):
+    """Tool: Uses DuckDuckGo's public Instant Answer API for live answers."""
+    print(f"\n   [TOOL ACTIVATED] Querying web API for: '{query}'...")
+    encoded_query = urllib.parse.quote(query)
+    url = f"https://api.duckduckgo.com/?q={encoded_query}&format=json&t=genai_agent"
+    
     try:
-        with DDGS() as ddgs:
-            results = [r['body'] for r in ddgs.text(query, max_results=3)]
+        req = urllib.request.Request(url, headers={'User-Agent': 'GenAI_Agent/1.0'})
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode('utf-8'))
             
-        if not results:
-            return f"No search results found for: {query}"
+        abstract = data.get("AbstractText", "")
+        if abstract:
+            return abstract
             
-        return " | ".join(results)
+        related = data.get("RelatedTopics", [])
+        for item in related:
+            if "Text" in item:
+                return item["Text"]
+                
+        return f"No direct summary found for '{query}'."
     except Exception as e:
         return f"Search Error: {str(e)}"
 
@@ -105,7 +117,7 @@ def chat():
             else:
                 agent_reply += "You haven't told me your name yet!"
                 
-        elif "hello" in query_lower or "hi" in query_lower or "what is your name" in query_lower or "what's your name" in query_lower or "who are you" in query_lower:
+        elif "hello" in query_lower or "hi" in query_lower or "who are you" in query_lower:
             greeting_name = f", {user_profile['name']}" if user_profile["name"] else ""
             agent_reply += f"Hello{greeting_name}! I am Genie, your AI agent. How can I help you today?"
             
@@ -130,8 +142,8 @@ def chat():
             if search_target.endswith("?"):
                 search_target = search_target[:-1].strip()
                 
-            search_result = search_duckduckgo_live(search_target)
-            agent_reply += f"Search Results: {search_result}"
+            search_result = search_web_fallback(search_target)
+            agent_reply += f"Search Result: {search_result}"
     elif not name_match:
         agent_reply = "Hello! How can I help you today?"
 
