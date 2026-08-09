@@ -6,8 +6,12 @@ import pickle
 import urllib.request
 import urllib.parse
 from bs4 import BeautifulSoup
+from collections import deque
 
 app = Flask(__name__)
+
+# Sliding window history buffer (retains last 6 turns)
+chat_history = deque(maxlen=6)
 
 # --- AGENT TOOLS ---
 
@@ -77,7 +81,13 @@ def index():
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.get_json()
-    user_message = data.get("message", "")
+    user_message = data.get("message", "").strip()
+    
+    if not user_message:
+        return jsonify({"response": "Please enter a valid message."})
+        
+    # Append user input to history buffer
+    chat_history.append({"role": "user", "content": user_message})
     query_lower = user_message.lower()
     
     # --- INTENT ROUTING LOGIC ---
@@ -85,7 +95,7 @@ def chat():
         agent_reply = "Hello! I am your custom GenAI agent, powered by your Flask backend and local tools."
         
     elif "status" in query_lower:
-        agent_reply = "System status: Online. Web scraper, Python interpreter, and file reader are active."
+        agent_reply = f"System status: Online. Active history turns: {len(chat_history)}. Tools ready."
         
     elif "read file" in query_lower or "file" in query_lower:
         file_content = read_local_file("shakespeare.txt")
@@ -101,13 +111,16 @@ def chat():
         agent_reply = f"Calculated Result: {result}"
         
     else:
-        # Route general informational questions to our live web scraper
+        # Route general queries to our live web scraper
         search_target = user_message.replace("what is the", "").replace("who is the", "").replace("who was the", "").replace("who was", "").replace("what is", "").replace("can you tell me", "").strip()
         if search_target.endswith("?"):
             search_target = search_target[:-1].strip()
             
         search_result = search_duckduckgo_web(search_target)
         agent_reply = f"Search Result: {search_result}"
+    
+    # Append assistant reply to history buffer
+    chat_history.append({"role": "assistant", "content": agent_reply})
     
     return jsonify({"response": agent_reply})
 
